@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Brick Breaker with Difficulty Levels & Perfect Collision</title>
+<style>
+  body {
+    margin: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    user-select: none;
+  }
+  #controls {
+    margin: 15px;
+  }
+  button {
+    background: #222;
+    border: 1px solid #555;
+    color: #fff;
+    padding: 8px 16px;
+    margin: 0 5px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  button:hover {
+    background: #444;
+  }
+  canvas {
+    background: #222;
+    border: 2px solid #fff;
+  }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <span>Select Difficulty:</span>
+  <button id="easyBtn">Easy</button>
+  <button id="mediumBtn">Medium</button>
+  <button id="hardBtn">Hard</button>
+</div>
+
+<canvas id="gameCanvas" width="480" height="320"></canvas>
+
+<script>
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+
+  // Game variables
+  let ballRadius = 8;
+  let x, y, dx, dy;
+  let paddleHeight, paddleWidth, paddleX;
+  let brickRowCount = 4;
+  let brickColumnCount = 7;
+  const brickWidth = 60;
+  const brickHeight = 20;
+  const brickPadding = 10;
+  const brickOffsetTop = 30;
+  let brickOffsetLeft;
+  let bricks = [];
+  let rightPressed = false;
+  let leftPressed = false;
+  let score = 0;
+  let isRunning = false;
+  let currentDifficulty = "Medium";
+
+  // Difficulty settings: speed magnitude & paddle width
+  const difficulties = {
+    Easy: { ballSpeed: 2, paddleWidth: 100 },
+    Medium: { ballSpeed: 3, paddleWidth: 75 },
+    Hard: { ballSpeed: 4, paddleWidth: 50 }
+  };
+
+  // Initialize game for a difficulty level
+  function initGame(difficulty) {
+    currentDifficulty = difficulty;
+
+    const speedMagnitude = difficulties[difficulty].ballSpeed;
+
+    // Ball velocity starts at 45° up-left
+    dx = speedMagnitude / Math.sqrt(2);
+    dy = -speedMagnitude / Math.sqrt(2);
+
+    paddleWidth = difficulties[difficulty].paddleWidth;
+    paddleHeight = 10;
+
+    x = canvas.width / 2;
+    y = canvas.height - 30;
+    paddleX = (canvas.width - paddleWidth) / 2;
+
+    const totalBricksWidth = brickColumnCount * (brickWidth + brickPadding) - brickPadding;
+    brickOffsetLeft = (canvas.width - totalBricksWidth) / 2;
+
+    bricks = [];
+    for (let c = 0; c < brickColumnCount; c++) {
+      bricks[c] = [];
+      for (let r = 0; r < brickRowCount; r++) {
+        bricks[c][r] = { x: 0, y: 0, status: 1 };
+      }
+    }
+
+    score = 0;
+    isRunning = true;
+    draw();
+  }
+
+  // Controls for paddle
+  document.addEventListener("keydown", e => {
+    if (e.key === "Right" || e.key === "ArrowRight") rightPressed = true;
+    if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = true;
+  });
+
+  document.addEventListener("keyup", e => {
+    if (e.key === "Right" || e.key === "ArrowRight") rightPressed = false;
+    if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = false;
+  });
+
+  document.addEventListener("mousemove", e => {
+    const relativeX = e.clientX - canvas.getBoundingClientRect().left;
+    if (relativeX > 0 && relativeX < canvas.width) {
+      paddleX = relativeX - paddleWidth / 2;
+      paddleX = Math.max(0, Math.min(canvas.width - paddleWidth, paddleX));
+    }
+  });
+
+  function drawBricks() {
+    for (let c = 0; c < brickColumnCount; c++) {
+      for (let r = 0; r < brickRowCount; r++) {
+        if (bricks[c][r].status === 1) {
+          const brickX = brickOffsetLeft + c * (brickWidth + brickPadding);
+          const brickY = brickOffsetTop + r * (brickHeight + brickPadding);
+          bricks[c][r].x = brickX;
+          bricks[c][r].y = brickY;
+
+          ctx.beginPath();
+          ctx.rect(brickX, brickY, brickWidth, brickHeight);
+          ctx.fillStyle = "#ff4444";
+          ctx.fill();
+          ctx.closePath();
+        }
+      }
+    }
+  }
+
+  function drawBall() {
+    ctx.beginPath();
+    ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+    ctx.fillStyle = "#00ccff";
+    ctx.fill();
+    ctx.closePath();
+  }
+
+  function drawPaddle() {
+    ctx.beginPath();
+    ctx.rect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
+    ctx.fillStyle = "#00ff99";
+    ctx.fill();
+    ctx.closePath();
+  }
+
+  function drawScore() {
+    ctx.font = "16px Arial";
+    ctx.fillStyle = "#fff";
+    ctx.fillText("Score: " + score, 8, 20);
+  }
+
+  function collisionDetection() {
+    for (let c = 0; c < brickColumnCount; c++) {
+      for (let r = 0; r < brickRowCount; r++) {
+        const b = bricks[c][r];
+        if (b.status === 1) {
+          if (
+            x + ballRadius > b.x &&
+            x - ballRadius < b.x + brickWidth &&
+            y + ballRadius > b.y &&
+            y - ballRadius < b.y + brickHeight
+          ) {
+            dy = -dy;
+            b.status = 0;
+            score++;
+            if (score === brickRowCount * brickColumnCount) {
+              alert("🎉 YOU WIN!");
+              isRunning = false;
+              document.location.reload();
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function draw() {
+    if (!isRunning) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBricks();
+    drawBall();
+    drawPaddle();
+    drawScore();
+    collisionDetection();
+
+    // Ball-wall collisions
+    if (x + dx > canvas.width - ballRadius || x + dx < ballRadius) dx = -dx;
+    if (y + dy < ballRadius) dy = -dy;
+    else {
+      // Paddle collision check with perfect top collision
+      if (
+        x + ballRadius > paddleX &&
+        x - ballRadius < paddleX + paddleWidth &&
+        y + ballRadius >= canvas.height - paddleHeight &&
+        y + ballRadius <= canvas.height - paddleHeight + 5 // small tolerance
+      ) {
+        dy = -dy;
+
+        // Adjust horizontal velocity based on hit position on paddle
+        let hitPos = x - (paddleX + paddleWidth / 2);
+        dx = hitPos * 0.15;
+
+        // Clamp total speed to difficulty max speed
+        const speedMagnitude = Math.sqrt(dx * dx + dy * dy);
+        const maxSpeed = difficulties[currentDifficulty].ballSpeed;
+        if (speedMagnitude > maxSpeed) {
+          const scale = maxSpeed / speedMagnitude;
+          dx *= scale;
+          dy *= scale;
+        }
+      } else if (y + ballRadius > canvas.height) {
+        alert("💥 GAME OVER");
+        isRunning = false;
+        document.location.reload();
+      }
+    }
+
+    x += dx;
+    y += dy;
+
+    // Paddle movement keys
+    if (rightPressed && paddleX < canvas.width - paddleWidth) paddleX += 7;
+    if (leftPressed && paddleX > 0) paddleX -= 7;
+
+    requestAnimationFrame(draw);
+  }
+
+  // Difficulty buttons handlers
+  document.getElementById("easyBtn").onclick = () => initGame("Easy");
+  document.getElementById("mediumBtn").onclick = () => initGame("Medium");
+  document.getElementById("hardBtn").onclick = () => initGame("Hard");
+
+  // Start on medium difficulty by default
+  initGame("Medium");
+</script>
+
+</body>
